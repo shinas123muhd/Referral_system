@@ -5,6 +5,7 @@ from .serializers import UserSerializer,ReferralSerializer
 from .models import User,Referral
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import ValidationError
 # Create your views here.
 
 class RegisterUser(APIView):
@@ -14,19 +15,24 @@ class RegisterUser(APIView):
             if serializer.is_valid():
                 
                 code = request.data.get('reffered_by')
-                print({'referal_code':code})
+                
                 if code:
                     referred_by_user = User.objects.get(referral_code = code)
-                    print(referred_by_user)
+                    
                     user = serializer.save(reffered_by = referred_by_user)
                     Referral.objects.create(referring_user=referred_by_user, referred_user=user)
                     referred_by_user.points += 1
                     referred_by_user.save()
                 else:
                     user = serializer.save()
-            return Response({'user_id':user.id,'message':'User Registered Successfully'})
-        except:
-            return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+            return Response({'user_id':user.id,'message':'User Registered Successfully'}, status=status.HTTP_201_CREATED)
+        
+        except User.DoesNotExist:
+            return Response({'message': 'Referring user not found'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValidationError as e:
+            return Response({'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'message': 'An error occurred'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 class UserDetails(APIView):
     def get(self,request,id,format=None):
